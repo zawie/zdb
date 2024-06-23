@@ -46,6 +46,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_set_get() {
+        let mut db = Database::new();
+
+        let k = "key";
+        let v = "value";
+        
+        match db.set(k.to_string(), v.to_string()) {
+            Ok(_) => {
+                match db.get("key") {
+                    Ok(_) => {
+                        match db.get("key").unwrap() {
+                            Some(value) => {
+                                assert_eq!(value, v);
+                            }
+                            None => {
+                                assert!(false, "Key not found after set");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        assert!(false, "Get failed: {}", e);
+                    }
+                
+                }
+            }
+            Err(e) => {
+                assert!(false, "Set failed: {}", e);
+            }
+        }
+
+        
+    }
+
+    #[test]
     fn test_memory_usage() {
 
         let mut db = Database::new();
