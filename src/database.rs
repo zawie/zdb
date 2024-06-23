@@ -20,12 +20,15 @@ impl Database {
     }
 
     pub fn set(&mut self, key: String, value: String) -> SetResult {
-        self.memory_usage += key.len() + value.len();
+        let key_len = key.len();
+        let value_len: usize = value.len();
         match self.map.insert(key, value) {
             Some(v) => {
-                self.memory_usage -= v.len();
+                self.memory_usage += value_len - v.len();
             }
-            None => {}
+            None => {
+                self.memory_usage += value_len + key_len;
+            }
         }
         return Ok(())
     }
@@ -43,7 +46,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn memory_usage_set() {
+    fn test_memory_usage() {
 
         let mut db = Database::new();
 
@@ -52,8 +55,20 @@ mod tests {
 
         let expected_memory_usage = k.len() + v.len();
 
+        assert!(db.memory_usage == 0, "Memory usage should start empty.");
         assert!(db.set(k, v).is_ok(), "Set failed");
+        assert!(db.memory_usage == expected_memory_usage, "Memory usage after first set is not correct! expected: {} got: {}", expected_memory_usage, db.memory_usage);
 
-        assert!(db.memory_usage == expected_memory_usage, "Memory usage is not correct")
+
+        let k = "key".to_string();
+        let v = "a different value ".to_string();
+
+        let expected_memory_usage = k.len() + v.len();
+
+        assert!(db.set(k, v).is_ok(), "Set failed");
+        assert!(db.memory_usage == expected_memory_usage, "Memory usage after second set is not correct! expected: {} got: {}", expected_memory_usage, db.memory_usage);
     }
+
+
+
 }
