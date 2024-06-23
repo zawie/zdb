@@ -10,7 +10,6 @@ pub struct Database {
 }
 
 
-
 impl Database {
     pub fn new() -> Database {
         Database {
@@ -20,6 +19,17 @@ impl Database {
     }
 
     pub fn set(&mut self, key: String, value: String) -> SetResult {
+        self.set_memory(key, value)
+    }
+
+    pub fn get(&self, key: &str) -> GetResult {
+        self.get_memory(key)
+    }
+
+    /* 
+        In-memory operations
+    */
+    fn set_memory(&mut self, key: String, value: String) -> SetResult {
         let key_len = key.len();
         let value_len: usize = value.len();
         match self.map.insert(key, value) {
@@ -33,12 +43,13 @@ impl Database {
         return Ok(())
     }
 
-    pub fn get(&self, key: &str) -> GetResult {
+    fn get_memory(&self, key: &str) -> GetResult {
         match self.map.get(key) {
             Some(value) => Ok(Some(value.clone())),
             None => Ok(None)
         }
     }
+
 }
 
 #[cfg(test)]
