@@ -37,3 +37,23 @@ impl Database {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_usage_set() {
+
+        let mut db = Database::new();
+
+        let k = "key".to_string();
+        let v = "value".to_string();
+
+        let expected_memory_usage = k.len() + v.len();
+
+        assert!(db.set(k, v).is_ok(), "Set failed");
+
+        assert!(db.memory_usage == expected_memory_usage, "Memory usage is not correct")
+    }
+}
