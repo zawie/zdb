@@ -27,11 +27,11 @@ fn main() {
                 match r {
                     Ok(_) => {
                         match r.unwrap() {
-                            Some(value) => println!("Value: {}", value),
-                            None => println!("Key not found!")
+                            Some(value) => println!("{}", value),
+                            None => println!(">> Key not found!")
                         }
                     }
-                    Err(e) => println!("Error setting value: {}", e)
+                    Err(e) => println!(">> Error getting value: {}", e)
                 }
             }
             "set" => {
@@ -41,8 +41,8 @@ fn main() {
                 }
                 let r = db.set(chunks[1].to_string(), chunks[2].to_string());
                 match r {
-                    Ok(_) => println!("Value set!"),
-                    Err(e) => println!("Error setting value: {}", e)
+                    Ok(_) => println!(">> Value set!"),
+                    Err(e) => println!(">> Error setting value: {}", e)
                 }
             }
             _ => {
