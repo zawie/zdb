@@ -46,7 +46,7 @@ fn main() {
                 }
             }
             _ => {
-                println!("Unknown command! Known commands: get <key>, set <key>");
+                println!("Unknown command! Known commands: get <key>, set <key> <value>");
             }
         }
     }
