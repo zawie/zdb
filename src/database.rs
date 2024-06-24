@@ -2,7 +2,7 @@ use crate::memory_store::MemoryStore;
 
 use super::{Storage, SetResult, GetResult};
 pub struct Database {
-    memory: MemoryStore
+    memory: MemoryStore,
 }
 
 impl Database {
@@ -14,7 +14,7 @@ impl Database {
 }
 
 impl Storage for Database {
-    fn set(&mut self, key: String, value: String) -> SetResult {
+    fn set(&mut self, key: &str, value: &str) -> SetResult {
         self.memory.set(key, value)
     }
 
@@ -34,7 +34,7 @@ mod tests {
         let k = "key";
         let v = "value";
         
-        match db.set(k.to_string(), v.to_string()) {
+        match db.set(k, v) {
             Ok(_) => {
                 match db.get("key") {
                     Ok(_) => {

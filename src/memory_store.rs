@@ -7,10 +7,10 @@ pub struct MemoryStore {
 }
 
 impl Storage for MemoryStore {
-    fn set(&mut self, key: String, value: String) -> SetResult {
+    fn set(&mut self, key: &str, value: &str) -> SetResult {
         let key_len = key.len();
         let value_len: usize = value.len();
-        match self.map.insert(key, value) {
+        match self.map.insert(key.to_owned(), value.to_owned()) {
             Some(v) => {
                 self.memory_usage += value_len - v.len();
             }
@@ -23,7 +23,7 @@ impl Storage for MemoryStore {
 
     fn get(&self, key: &str) -> GetResult {
         match self.map.get(key) {
-            Some(value) => Ok(Some(value.clone())),
+            Some(value) => Ok(Some(value.to_owned())),
             None => Ok(None)
         }
     }
@@ -49,7 +49,7 @@ mod tests {
         let k = "key";
         let v = "value";
         
-        match store.set(k.to_string(), v.to_string()) {
+        match store.set(k, v) {
             Ok(_) => {
                 match store.get("key") {
                     Ok(_) => {
@@ -81,8 +81,8 @@ mod tests {
 
         let mut store = MemoryStore::new();
 
-        let k = "key".to_string();
-        let v = "value".to_string();
+        let k = "key";
+        let v = "value";
 
         let expected_memory_usage = k.len() + v.len();
 
@@ -91,8 +91,7 @@ mod tests {
         assert!(store.memory_usage == expected_memory_usage, "Memory usage after first set is not correct! expected: {} got: {}", expected_memory_usage, store.memory_usage);
 
 
-        let k = "key".to_string();
-        let v = "a different value ".to_string();
+        let v = "a different value ";
 
         let expected_memory_usage = k.len() + v.len();
 

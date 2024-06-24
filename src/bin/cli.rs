@@ -23,7 +23,7 @@ fn main() {
                     println!("Usage: get <key>");
                     continue;
                 }
-                let r = db.get(&chunks[1].to_string());
+                let r = db.get(&chunks[1]);
                 match r {
                     Ok(_) => {
                         match r.unwrap() {
@@ -39,7 +39,7 @@ fn main() {
                     println!("Usage: set <key> <value>");
                     continue;
                 }
-                let r = db.set(chunks[1].to_string(), chunks[2].to_string());
+                let r = db.set(chunks[1], chunks[2]);
                 match r {
                     Ok(_) => println!(">> Value set!"),
                     Err(e) => println!(">> Error setting value: {}", e)
