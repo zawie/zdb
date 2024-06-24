@@ -1,4 +1,4 @@
-use lib::database;
+use lib::{database, Storage};
 use std::io;
 
 fn main() {
@@ -46,7 +46,7 @@ fn main() {
                 }
             }
             _ => {
-                println!("Unknown command! Known commands: get <key>, set <key> <value>");
+                println!("Unknown command! Known commands: get <key>, set <key> <");
             }
         }
     }
