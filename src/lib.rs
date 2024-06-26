@@ -1,5 +1,6 @@
 pub mod database;
 mod memory_store;
+mod log_store;
 
 use std::error::Error;
 

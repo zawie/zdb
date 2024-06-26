@@ -1,20 +1,30 @@
-use crate::memory_store::MemoryStore;
+use crate::{log_store::LogStore, memory_store::MemoryStore};
 
 use super::{Storage, SetResult, GetResult};
 pub struct Database {
     memory: MemoryStore,
+    log: LogStore
 }
 
 impl Database {
     pub fn new() -> Database {
-        Database {
+        let mut db = Database {
             memory: MemoryStore::new(),
+            log: LogStore::init()
+        };
+
+        for line in db.log.iter().unwrap() {
+            let (key, value) = line;
+            let _ = db.memory.set(&key, &value);
         }
+
+        db
     }
 }
 
 impl Storage for Database {
     fn set(&mut self, key: &str, value: &str) -> SetResult {
+        self.log.set(key, value)?;
         self.memory.set(key, value)
     }
 
