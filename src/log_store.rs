@@ -58,7 +58,19 @@ impl Storage for LogStore {
     }
 
     fn get(&self, key: &str) -> GetResult {
-        todo!()
+        let entries = match self.iter() {
+            Ok(entries) => entries,
+            Err(e) => return Err(e.into())
+        };
+
+        let mut latest: Option<String> = None;
+        for (k, v) in entries {
+            if k == key {
+                latest = Some(v);
+            }
+        }
+
+        Ok(latest)
     }
 }
 
