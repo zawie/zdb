@@ -87,8 +87,8 @@ fn deserialize(input: &str) -> String {
     while let Some(&ch) = chars.peek() {        
         match ch {
             '\\' => {
-                input.chars().next();
-                match input.chars().peekable().peek() {
+                chars.next();
+                match chars.peek() {
                     Some('n') => {
                         result.push('\n');
                     }
@@ -134,5 +134,16 @@ impl Iterator for LogStoreIterator {
             }
             _ => None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_serialize() {
+        let x = "Hello\\\nWorld\t!\\n\n";
+        let y = deserialize(&serialize(x));
+        assert!(x == y, "Expected {} but got {}", x, y);
     }
 }
