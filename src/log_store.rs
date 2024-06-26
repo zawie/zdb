@@ -1,8 +1,6 @@
 use std::{fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Write}};
 
 use crate::{GetResult, SetResult, Storage};
-// use std::fs::OpenOptions;
-
 
  pub struct LogStore {
     file_path: String,
