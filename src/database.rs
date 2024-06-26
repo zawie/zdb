@@ -7,18 +7,25 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new() -> Database {
+    pub fn new() -> Result<Database, Box<dyn std::error::Error>> {
         let mut db = Database {
             memory: MemoryStore::new(),
             log: LogStore::init()
         };
 
-        for line in db.log.iter().unwrap() {
-            let (key, value) = line;
-            let _ = db.memory.set(&key, &value);
+        let entries = match db.log.iter() {
+            Ok(entries) => entries,
+            Err(e) => return Err(e.into())
+        };
+        
+        for (k,v) in entries {
+            match db.memory.set(&k, &v) {
+                Err(e) => return Err(e),
+                _ => {}
+            }
         }
 
-        db
+        Ok(db)
     }
 }
 
@@ -39,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_set_get() {
-        let mut db = Database::new();
+        let mut db = Database::new().expect("Failed to create database");
 
         let k = "key";
         let v = "value";

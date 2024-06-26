@@ -3,7 +3,7 @@ use std::io;
 
 fn main() {
 
-    let mut db = database::Database::new();
+    let mut db = database::Database::new().expect("Failed to create database");
 
     loop {
         let mut input = String::new();
