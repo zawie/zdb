@@ -9,10 +9,11 @@ pub struct MemoryStore {
 impl Storage for MemoryStore {
     fn set(&mut self, key: &str, value: &str) -> SetResult {
         let key_len = key.len();
-        let value_len: usize = value.len();
+        let value_len = value.len();
         match self.map.insert(key.to_owned(), value.to_owned()) {
             Some(v) => {
-                self.memory_usage += value_len - v.len();
+                self.memory_usage += value_len;
+                self.memory_usage -= v.len();
             }
             None => {
                 self.memory_usage += value_len + key_len;
