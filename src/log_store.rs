@@ -9,16 +9,14 @@ use crate::{GetResult, SetResult, Storage};
 
 impl LogStore {
 
-    pub fn init() -> LogStore {
-        let f = "temp.log".to_string();
-
+    pub fn init(file_path: String) -> LogStore {
         LogStore {
-            file_path: f.to_owned(),
+            file_path: file_path.to_owned(),
             writer: OpenOptions::new()
                 .write(true)
                 .append(true)
                 .create(true)
-                .open(f)
+                .open(file_path)
                 .unwrap(),
         }
     }
@@ -28,6 +26,13 @@ impl LogStore {
         Ok(LogStoreIterator {
             lines:  io::BufReader::new(file).lines()
         })
+    }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.writer.sync_all()?;
+        self.writer = std::fs::OpenOptions::new().truncate(true).write(true).open(self.file_path.to_owned())?;
+
+        Ok(())
     }
 
 }

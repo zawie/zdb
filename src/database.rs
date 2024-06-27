@@ -10,7 +10,7 @@ impl Database {
     pub fn new() -> Result<Database, Box<dyn std::error::Error>> {
         let mut db = Database {
             memory: MemoryStore::new(),
-            log: LogStore::init()
+            log: LogStore::init("temp.log".to_string())
         };
 
         let entries = match db.log.iter() {
