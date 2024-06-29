@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use super::{Storage, SetResult, GetResult};
 pub struct MemoryStore {
-    map: HashMap<String, String>,
+    map: BTreeMap<String, String>,
     memory_usage: usize
 }
 
@@ -33,7 +33,7 @@ impl Storage for MemoryStore {
 impl MemoryStore {
     pub fn new() -> MemoryStore {
         MemoryStore {
-            map: HashMap::new(),
+            map: BTreeMap::new(),
             memory_usage: 0
         }
     }
