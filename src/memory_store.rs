@@ -37,6 +37,14 @@ impl MemoryStore {
             memory_usage: 0
         }
     }
+
+    pub fn get_memory_usage(&self) -> usize {
+        self.memory_usage
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &String)> {
+        self.map.iter()
+    }
 }
 
 #[cfg(test)]

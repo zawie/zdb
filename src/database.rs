@@ -1,16 +1,18 @@
-use crate::{log_store::LogStore, memory_store::MemoryStore};
+use crate::{log_store::LogStore, memory_store::MemoryStore, segment_store::SegmentStore};
 
 use super::{Storage, SetResult, GetResult};
 pub struct Database {
     memory: MemoryStore,
-    log: LogStore
+    log: LogStore,
+    segments: Vec<SegmentStore>,
 }
 
 impl Database {
     pub fn new() -> Result<Database, Box<dyn std::error::Error>> {
         let mut db = Database {
             memory: MemoryStore::new(),
-            log: LogStore::init("temp.log".to_string())
+            log: LogStore::init("temp.log".to_string()),
+            segments: Vec::new(),
         };
 
         let entries = match db.log.iter() {
@@ -32,11 +34,31 @@ impl Database {
 impl Storage for Database {
     fn set(&mut self, key: &str, value: &str) -> SetResult {
         self.log.set(key, value)?;
-        self.memory.set(key, value)
+        self.memory.set(key, value)?;
+        if self.memory.get_memory_usage() > 10 {
+            self.segments.push(SegmentStore::create_from_iterator(
+                "temp.seg".to_string(),
+                self.memory.iter().map(|(k, v)| (k.to_owned(), v.to_owned()))
+            ).unwrap());
+            self.memory = MemoryStore::new();
+        }
+
+        Ok(())
     }
 
     fn get(&self, key: &str) -> GetResult {
-        self.memory.get(key)
+        match self.memory.get(key)? {
+            Some(value) => Ok(Some(value)),
+            None => {
+                for segment in self.segments.iter().rev() {
+                    match segment.get(key) {
+                        Ok(Some(value)) => return Ok(Some(value)),
+                        _ => {}
+                    }
+                }
+                Ok(None)
+            }
+        }
     }
 }
 
