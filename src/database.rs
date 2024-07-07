@@ -58,7 +58,7 @@ impl Storage for Database {
         if self.memory.get_memory_usage() > MAX_MEMORY_USAGE {
             self.segments.push(SegmentStore::create_from_iterator(
                 self.directory.join(self.directory.join(format!("{}.seg", Uuid::new_v4().to_string()))),
-                self.segments.len(),
+                self.segments.iter().map(|s| s.get_sequence_number()).max().unwrap_or(0) + 1,
                 self.memory.iter().map(|(k, v)| (k.to_owned(), v.to_owned()))
             ).unwrap());
             self.memory = MemoryStore::new();
