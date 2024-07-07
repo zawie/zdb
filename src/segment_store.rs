@@ -1,4 +1,4 @@
-use std::{error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Read, Seek, Write}, path::PathBuf};
+use std::{collections::btree_map::Keys, error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Cursor, Read, Seek, Write}, path::PathBuf};
 use std::str;
 
 use super::{GetResult};
@@ -109,21 +109,12 @@ impl SegmentStore {
         debug!("Block size: {}", block.len());
 
 
-        let data = decompress(&block);
-        let mut reader: BufReader<&[u8]> = BufReader::new(data);
-        while !reader.fill_buf()?.is_empty() {
-            let (k, v) = read_entry(&mut reader)?;
-            if k == key.as_bytes() {
-                return Ok(Some(
-                    match str::from_utf8(v.as_slice()) {
-                        Ok(v) => String::from(v),
-                        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-                    }
-                ));
-            }
+       for (k, v) in BlockIterator::new(&block) {
+        if k == key {
+            return Ok(Some(v))
         }
 
-        // Key not found
+       }
         Ok(None)
     }
 
@@ -134,6 +125,35 @@ impl SegmentStore {
     }
 
 
+}
+
+pub struct BlockIterator {
+    reader: Cursor<Vec<u8>>
+}
+
+impl BlockIterator {
+    
+    pub fn new(block: &Vec<u8>) -> BlockIterator{
+        let data = decompress(&block);
+        let mut reader = Cursor::new(Vec::from(data));
+
+        BlockIterator {
+            reader: reader,
+        }
+    }
+}
+
+impl<'a> Iterator for BlockIterator {
+    type Item = (String, String);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.reader.fill_buf().unwrap().is_empty() {
+            return None;
+        }
+
+        let (k, v) = read_entry(&mut self.reader).unwrap();
+        Some((str::from_utf8(k.as_slice()).unwrap().to_string(), str::from_utf8(v.as_slice()).unwrap().to_string()))
+    }
 }
 
 fn closest_element_before<K:PartialOrd + Clone, V: Clone> (key: K, elements: &Vec<(K,V)>) -> Option<(K,V)> {
