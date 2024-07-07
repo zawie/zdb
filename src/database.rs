@@ -1,6 +1,8 @@
 use crate::{log_store::LogStore, memory_store::MemoryStore, segment_store::SegmentStore};
 
 use super::{Storage, SetResult, GetResult};
+
+const MAX_MEMORY_USAGE: usize = 100_000;
 pub struct Database {
     memory: MemoryStore,
     log: LogStore,
@@ -35,7 +37,7 @@ impl Storage for Database {
     fn set(&mut self, key: &str, value: &str) -> SetResult {
         self.log.set(key, value)?;
         self.memory.set(key, value)?;
-        if self.memory.get_memory_usage() > 10 {
+        if self.memory.get_memory_usage() > MAX_MEMORY_USAGE {
             self.segments.push(SegmentStore::create_from_iterator(
                 "temp.seg".to_string(),
                 self.segments.len(),
