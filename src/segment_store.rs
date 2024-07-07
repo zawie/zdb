@@ -42,6 +42,21 @@ impl SegmentStore {
         self.sequence_number
     }
     
+    pub fn iter(&self) -> SegmentIterator {
+        if self.index.len() == 0 {
+            return SegmentIterator {
+                reader: BufReader::new(self.start_from_offset(self.index[0].1).unwrap()),
+                block_iterator: BlockIterator::new(&Vec::new()),
+            };
+        }
+
+        SegmentIterator {
+            reader: BufReader::new(self.start_from_offset(self.index[0].1).unwrap()),
+            block_iterator: BlockIterator::new(&Vec::new()),
+
+        }
+    }
+
     pub fn create_from_iterator(file_path: PathBuf, sequence_number: usize, sorted_iterator: impl Iterator<Item = (String, String)>) -> Result<SegmentStore, Box<dyn Error>> {
         let mut writer = get_writer(file_path.clone());
         let mut bytes_written = 0usize;
@@ -135,7 +150,7 @@ impl BlockIterator {
     
     pub fn new(block: &Vec<u8>) -> BlockIterator{
         let data = decompress(&block);
-        let mut reader = Cursor::new(Vec::from(data));
+        let reader = Cursor::new(Vec::from(data));
 
         BlockIterator {
             reader: reader,
@@ -153,6 +168,30 @@ impl<'a> Iterator for BlockIterator {
 
         let (k, v) = read_entry(&mut self.reader).unwrap();
         Some((str::from_utf8(k.as_slice()).unwrap().to_string(), str::from_utf8(v.as_slice()).unwrap().to_string()))
+    }
+}
+
+pub struct SegmentIterator {
+    reader: BufReader<File>,
+    block_iterator: BlockIterator,
+}
+
+impl Iterator for SegmentIterator {
+    type Item = (String, String);
+
+    fn next(&mut self) -> Option<Self::Item> {
+
+        match self.block_iterator.next() {
+            Some(x) => Some(x),
+            None => {
+                if self.reader.fill_buf().unwrap().is_empty() {
+                    return None;
+                }
+                let (_, block) = read_entry(&mut self.reader).expect("Failed to reach segment during iteration!");
+                self.block_iterator = BlockIterator::new(&block);
+                self.block_iterator.next()
+            }
+        }
     }
 }
 
@@ -270,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    fn test_random() {
+    fn test_random_set_gets() {
         let file_path = PathBuf::from("test_temp.seg");
         let state = random_state(100);
 
@@ -292,6 +331,27 @@ mod tests {
             let result = segment.get(&k).unwrap();
             assert_eq!(result.unwrap(), v.to_string());
         }
+
+        let _ = fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_segment_iterator() {
+        let file_path: PathBuf = PathBuf::from("test_temp_iterator.seg");
+        let state = random_state(100);
+        let segment = SegmentStore::create_from_iterator(
+            file_path.to_owned(), 
+            0,
+            state.iter().map(|(k, v)| (k.to_string(), v.to_string()))
+        
+        ).unwrap();
+
+        assert_eq!(state.iter().count(), segment.iter().count());
+
+        state.iter().zip(segment.iter()).for_each(|((k1, v1), (k2, v2))| {
+            assert_eq!(k1.to_owned(), k2);
+            assert_eq!(v1.to_owned(), v2);
+        });
 
         let _ = fs::remove_file(file_path);
     }
