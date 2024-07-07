@@ -1,20 +1,26 @@
+use std::{fs, path::PathBuf};
+use uuid::Uuid;
 use crate::{log_store::LogStore, memory_store::MemoryStore, segment_store::SegmentStore};
-
 use super::{Storage, SetResult, GetResult};
 
 const MAX_MEMORY_USAGE: usize = 100_000;
 pub struct Database {
+    directory: PathBuf,
     memory: MemoryStore,
     log: LogStore,
     segments: Vec<SegmentStore>,
 }
 
 impl Database {
-    pub fn new() -> Result<Database, Box<dyn std::error::Error>> {
+    pub fn new(directory: PathBuf) -> Result<Database, Box<dyn std::error::Error>> {
+        fs::create_dir_all(directory.to_owned())?;
+
+
         let mut db = Database {
             memory: MemoryStore::new(),
-            log: LogStore::init("temp.log".to_string()),
+            log: LogStore::init(directory.join("write.log")),
             segments: Vec::new(),
+            directory: directory,
         };
 
         let entries = match db.log.iter() {
@@ -39,7 +45,7 @@ impl Storage for Database {
         self.memory.set(key, value)?;
         if self.memory.get_memory_usage() > MAX_MEMORY_USAGE {
             self.segments.push(SegmentStore::create_from_iterator(
-                "temp.seg".to_string(),
+                self.directory.join(self.directory.join(format!("{}.seg", Uuid::new_v4().to_string()))),
                 self.segments.len(),
                 self.memory.iter().map(|(k, v)| (k.to_owned(), v.to_owned()))
             ).unwrap());
@@ -72,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_set_get() {
-        let mut db = Database::new().expect("Failed to create database");
+        let mut db = Database::new(PathBuf::from("/tmp/zdb_test_database")).expect("Failed to create database");
 
         let k = "key";
         let v = "value";

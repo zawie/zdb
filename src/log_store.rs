@@ -1,15 +1,15 @@
-use std::{fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Write}};
+use std::{fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Write}, path::PathBuf};
 
 use crate::{GetResult, SetResult, Storage};
 
  pub struct LogStore {
-    file_path: String,
+    file_path: PathBuf,
     writer: File,
 }
 
 impl LogStore {
 
-    pub fn init(file_path: String) -> LogStore {
+    pub fn init(file_path: PathBuf) -> LogStore {
         LogStore {
             file_path: file_path.to_owned(),
             writer: OpenOptions::new()

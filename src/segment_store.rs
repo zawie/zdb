@@ -1,4 +1,4 @@
-use std::{error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Read, Seek, Write}};
+use std::{error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Read, Seek, Write}, path::PathBuf};
 use std::str;
 
 use super::{GetResult};
@@ -8,13 +8,13 @@ use log::{debug};
 const BLOCK_SIZE: usize = 10000;
 pub struct SegmentStore {
     sequence_number: usize,
-    file_path: String,  
+    file_path: PathBuf,  
     index: Vec<(String, usize)>, // (key, offset)
 }
 
-pub fn load_from_file(file_path: &String) -> Result<SegmentStore, Box<dyn Error>> {
+pub fn load_from_file(file_path: PathBuf) -> Result<SegmentStore, Box<dyn Error>> {
     let mut index = Vec::new();
-    let mut reader: BufReader<File> = BufReader::new(File::open(file_path)?);
+    let mut reader: BufReader<File> = BufReader::new(File::open(file_path.to_owned())?);
     let mut bytes_read = 0;
 
     // Read in the sequence number
@@ -31,15 +31,15 @@ pub fn load_from_file(file_path: &String) -> Result<SegmentStore, Box<dyn Error>
 
     Ok(SegmentStore{
         sequence_number: usize::from_ne_bytes(sequene_number_bytes),
-        file_path: file_path.to_owned(),
+        file_path: file_path,
         index: index,
     })
 }
 
 impl SegmentStore {
 
-    pub fn create_from_iterator(file_path: String, sequence_number: usize, sorted_iterator: impl Iterator<Item = (String, String)>) -> Result<SegmentStore, Box<dyn Error>> {
-        let mut writer = get_writer(&file_path);
+    pub fn create_from_iterator(file_path: PathBuf, sequence_number: usize, sorted_iterator: impl Iterator<Item = (String, String)>) -> Result<SegmentStore, Box<dyn Error>> {
+        let mut writer = get_writer(file_path.clone());
         let mut bytes_written = 0usize;
 
         bytes_written += writer.write(&sequence_number.to_ne_bytes())?;
@@ -74,7 +74,7 @@ impl SegmentStore {
             bytes_written += writer.write(encode(compress(&buffer))?.as_slice())?;
         }
 
-        debug!("Finished writing segment to {}. Wrote {} bytes in {} blocks", file_path, bytes_written, index.len());
+        debug!("Finished writing segment to {}. Wrote {} bytes in {} blocks", file_path.to_str().unwrap(), bytes_written, index.len());
 
         Ok(SegmentStore{
             sequence_number: sequence_number,
@@ -96,8 +96,8 @@ impl SegmentStore {
             None => return Ok(None),
         };
 
-        debug!("Nearest key for \"{}\" is \"{}\" in segment {}", key, block_key, self.file_path);
-        debug!("Reading from offset {} in {}", offset, self.file_path);
+        debug!("Nearest key for \"{}\" is \"{}\" in segment {}", key, block_key, self.file_path.to_str().unwrap());
+        debug!("Reading from offset {} in {}", offset, self.file_path.to_str().unwrap());
 
         let mut reader = self.start_from_offset(offset)?;
         let (_, block) = read_entry(&mut reader)?;
@@ -196,7 +196,7 @@ fn encode(input_string: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     Ok(entry)
 }
 
-fn get_writer(file_path: &str) -> File {
+fn get_writer(file_path: PathBuf) -> File {
     OpenOptions::new()
         .write(true)
         .append(true)
@@ -247,11 +247,11 @@ mod tests {
 
     #[test]
     fn test_random() {
-        let file_path = "test_temp.seg";
+        let file_path = PathBuf::from("test_temp.seg");
         let state = random_state(100);
 
         let segment = SegmentStore::create_from_iterator(
-            file_path.to_string(), 
+            file_path.to_owned(), 
             0,
             state.iter().map(|(k, v)| (k.to_string(), v.to_string()))
         
@@ -262,7 +262,7 @@ mod tests {
             assert_eq!(result.unwrap(), v.to_string());
         }
     
-        let segment = load_from_file(&file_path.to_string()).unwrap();
+        let segment = load_from_file(file_path.to_owned()).unwrap();
 
         for (k, v) in state {
             let result = segment.get(&k).unwrap();

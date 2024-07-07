@@ -16,3 +16,7 @@ path = "src/bin/cli.rs"
 [dependencies]
 rand = "0.8.4"
 log = "0.4.14"
+
+[dependencies.uuid]
+uuid = "1.9.1" 
+features = ["v4"]

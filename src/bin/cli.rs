@@ -1,9 +1,9 @@
 use lib::{database, Storage};
-use std::io;
+use std::{io, path::PathBuf};
 
 fn main() {
 
-    let mut db = database::Database::new().expect("Failed to create database");
+    let mut db = database::Database::new(PathBuf::from("/tmp/dev")).expect("Failed to create database");
 
     loop {
         let mut input = String::new();
