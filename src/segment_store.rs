@@ -11,6 +11,24 @@ pub struct SegmentStore {
     index: Vec<(String, usize)>, // (key, offset)
 }
 
+pub fn load_from_file(file_path: &String) -> Result<SegmentStore, Box<dyn Error>> {
+    let mut reader: BufReader<File> = BufReader::new(File::open(file_path)?);
+    let mut index = Vec::new();
+
+    let mut bytes_read = 0;
+    while !reader.fill_buf()?.is_empty() {
+        let (key, block) = read_entry(&mut reader)?;
+        index.push((str::from_utf8(key.as_slice())?.to_string(), bytes_read));
+        bytes_read += block.len();
+    }
+
+
+    Ok(SegmentStore{
+        file_path: file_path.to_owned(),
+        index: index,
+    })
+}
+
 impl SegmentStore {
 
     pub fn create_from_iterator(file_path: String, sorted_iterator: impl Iterator<Item = (String, String)>) -> Result<SegmentStore, Box<dyn Error>> {
@@ -229,6 +247,13 @@ mod tests {
             state.iter().map(|(k, v)| (k.to_string(), v.to_string()))
         
         ).unwrap();
+
+        for (k, v) in state.clone() {
+            let result = segment.get(&k).unwrap();
+            assert_eq!(result.unwrap(), v.to_string());
+        }
+    
+        let segment = load_from_file(&file_path.to_string()).unwrap();
 
         for (k, v) in state {
             let result = segment.get(&k).unwrap();
