@@ -1,4 +1,4 @@
-use std::{collections::btree_map::Keys, error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Cursor, Read, Seek, Write}, path::PathBuf};
+use std::{collections::{btree_map::Keys, HashSet}, error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Cursor, Read, Seek, Write}, iter::Peekable, path::PathBuf};
 use std::str;
 
 use super::{GetResult};
@@ -34,6 +34,54 @@ pub fn load_from_file(file_path: PathBuf) -> Result<SegmentStore, Box<dyn Error>
         file_path: file_path,
         index: index,
     })
+}
+
+pub fn compact(file_path: PathBuf, mut segments: Vec<SegmentStore>) -> Result<SegmentStore, Box<dyn Error>> {
+    segments.sort_by(|a, b| a.get_sequence_number().cmp(&b.get_sequence_number()));
+
+    struct InterIterator {
+        iterators: Vec<Peekable<SegmentIterator>>,
+    }
+
+    impl Iterator for InterIterator {
+        type Item = (String, String);
+        
+        fn next(&mut self) -> Option<Self::Item> {
+            let mut min_element: Option<(String, String)> = None;
+            let mut min_iter_index = None;
+            for i in (0..=self.iterators.len()-1).rev() {
+                let iter = &mut self.iterators[i];
+                let curr_element = iter.peek();
+                if curr_element.is_none() {
+                    continue;
+                }
+                let curr_element = curr_element.unwrap();
+                if min_element.is_none() || min_element.to_owned().unwrap().0 < curr_element.0 {
+                    min_element = Some(curr_element.to_owned());
+                    min_iter_index = Some(i);
+                    continue;
+                } else if min_element.to_owned().unwrap().0 == curr_element.0 {
+                    // Advanced iterators with lower sequence that match current minimum.
+                    iter.next();
+                    continue;
+                }
+        }
+            if !min_iter_index.is_none() {
+                self.iterators[min_iter_index?].next();
+            }
+            
+            min_element
+        }
+    }
+
+   SegmentStore::create_from_iterator(
+        file_path,
+        segments.iter().map(|s| s.get_sequence_number()).min().unwrap_or(0),
+        InterIterator{
+            iterators: segments.iter().map(|s| s.iter().peekable()).collect::<Vec<_>>(),
+        },
+    )
+
 }
 
 impl SegmentStore {
@@ -158,7 +206,7 @@ impl BlockIterator {
     }
 }
 
-impl<'a> Iterator for BlockIterator {
+impl Iterator for BlockIterator {
     type Item = (String, String);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -309,8 +357,55 @@ mod tests {
     }
 
     #[test]
+    fn test_compact() {
+        let mut state_0 = BTreeMap::new();
+        state_0.insert("a", "0");
+        state_0.insert("b", "0");
+
+        let mut state_1 = BTreeMap::new();
+        state_1.insert("a", "1");
+        state_1.insert("c", "1");
+
+        let file_path_0: PathBuf = PathBuf::from("temp_compact_0.seg");
+        let segment_0 = SegmentStore::create_from_iterator(
+            file_path_0.to_owned(), 
+            0,
+            state_0.iter().map(|(k, v)| (k.to_string(), v.to_string())))
+            .expect("Failed to create first segment!");
+
+
+        let file_path_1: PathBuf = PathBuf::from("temp_compact_1.seg");
+        let segment_1 = SegmentStore::create_from_iterator(
+            file_path_1.to_owned(), 
+            1,
+            state_1.iter().map(|(k, v)| (k.to_string(), v.to_string())))
+            .expect("Failed to create second segment!");
+
+
+        let file_path_compact: PathBuf = PathBuf::from("temp_compact_compacted.seg");
+        let compact_segment = compact(
+            file_path_compact.to_owned(),
+            vec!(segment_0, segment_1)
+        ).expect("Failed to compact segments!");
+        let _ = fs::remove_file(file_path_0);
+        let _ = fs::remove_file(file_path_1);
+
+        for (k,v) in compact_segment.iter() {
+            match k.as_str() {
+                "a" => assert_eq!(v, "1", "Latest segment should be represented!"),
+                "b" => assert_eq!(v, "0", "Keys from segment 0 are not be present!"),
+                "c" => assert_eq!(v, "1", "Keys from segment 1 are not be present!"),
+                _ => panic!("Unknown key present!"),
+            }
+        }
+
+        let _ = fs::remove_file(file_path_compact);
+
+    }
+
+    #[test]
     fn test_random_set_gets() {
-        let file_path = PathBuf::from("test_temp.seg");
+        let file_path: PathBuf = PathBuf::from("test_temp.seg");
         let state = random_state(100);
 
         let segment = SegmentStore::create_from_iterator(
