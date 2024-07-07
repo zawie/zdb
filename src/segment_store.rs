@@ -1,11 +1,11 @@
-use std::{collections::{btree_map::Keys, HashSet}, error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Cursor, Read, Seek, Write}, iter::Peekable, path::PathBuf};
+use std::{error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Cursor, Read, Seek, Write}, iter::Peekable, path::PathBuf};
 use std::str;
 
-use super::{GetResult};
+use super::GetResult;
 
-use log::{debug};
+use log::{debug, trace};
 
-const BLOCK_SIZE: usize = 10000;
+const BLOCK_SIZE_BYTES: usize = 10_000;
 pub struct SegmentStore {
     sequence_number: usize,
     file_path: PathBuf,  
@@ -18,24 +18,25 @@ pub fn load_from_file(file_path: PathBuf) -> Result<SegmentStore, Box<dyn Error>
     let mut bytes_read = 0;
 
     // Read in the sequence number
-    let mut sequene_number_bytes: [u8; 8] = [0; 8];
-    reader.read_exact(&mut sequene_number_bytes)?;
+    let mut sequence_number_bytes: [u8; 8] = [0; 8];
+    reader.read_exact(&mut sequence_number_bytes)?;
     bytes_read += 8;
 
+    // Read each block's first key and store their offset in index
     while !reader.fill_buf()?.is_empty() {
         let (key, block) = read_entry(&mut reader)?;
         index.push((str::from_utf8(key.as_slice())?.to_string(), bytes_read));
         bytes_read += block.len();
     }
 
-
     Ok(SegmentStore{
-        sequence_number: usize::from_ne_bytes(sequene_number_bytes),
+        sequence_number: usize::from_ne_bytes(sequence_number_bytes),
         file_path: file_path,
         index: index,
     })
 }
 
+// Merges segment stores into one segment. Duplicate keys are resolved by taking the higehst sequence number key.
 pub fn compact(file_path: PathBuf, mut segments: Vec<SegmentStore>) -> Result<SegmentStore, Box<dyn Error>> {
     segments.sort_by(|a, b| a.get_sequence_number().cmp(&b.get_sequence_number()));
 
@@ -47,8 +48,10 @@ pub fn compact(file_path: PathBuf, mut segments: Vec<SegmentStore>) -> Result<Se
         type Item = (String, String);
         
         fn next(&mut self) -> Option<Self::Item> {
+            // Pop the current minimum key across all the segments, while resolving duplicates.
             let mut min_element: Option<(String, String)> = None;
             let mut min_iter_index = None;
+            // Consider segments in decreasing sequence number order
             for i in (0..=self.iterators.len()-1).rev() {
                 let iter = &mut self.iterators[i];
                 let curr_element = iter.peek();
@@ -61,12 +64,13 @@ pub fn compact(file_path: PathBuf, mut segments: Vec<SegmentStore>) -> Result<Se
                     min_iter_index = Some(i);
                     continue;
                 } else if min_element.to_owned().unwrap().0 == curr_element.0 {
-                    // Advanced iterators with lower sequence that match current minimum.
+                    // Advanced iterators with lower sequence that match current minimum in order to resolve duplicates.
                     iter.next();
                     continue;
                 }
-        }
+            }
             if !min_iter_index.is_none() {
+                // Advanced the minimum iterator to make progress
                 self.iterators[min_iter_index?].next();
             }
             
@@ -109,6 +113,7 @@ impl SegmentStore {
         let mut writer = get_writer(file_path.clone());
         let mut bytes_written = 0usize;
 
+        // Write out the sequence number
         bytes_written += writer.write(&sequence_number.to_ne_bytes())?;
 
         let mut index = Vec::new();
@@ -116,6 +121,7 @@ impl SegmentStore {
         let mut buffer = Vec::new();
         let mut first_key: Option<String> = None;
 
+        // Write out key value pairs into blocks which are labled with the first key in the block
         for (k, v) in sorted_iterator {
             if first_key.is_none() {
                 index.push((k.to_string(), bytes_written));
@@ -125,7 +131,7 @@ impl SegmentStore {
             buffer.extend(&encode(k.as_bytes())?);
             buffer.extend(&encode(v.as_bytes())?);
 
-            if buffer.len() > BLOCK_SIZE {
+            if buffer.len() > BLOCK_SIZE_BYTES {
                 debug!("Writing block of size {} with first key \"{}\"", buffer.len(), first_key.clone().unwrap());
                 bytes_written += writer.write(encode(first_key.unwrap().as_bytes())?.as_slice())?;
                 bytes_written += writer.write(encode(compress(&buffer))?.as_slice())?;
@@ -154,8 +160,7 @@ impl SegmentStore {
 impl SegmentStore {
 
     pub fn get(&self, key: &str) -> GetResult {
-        debug!("Getting key from segment");
-
+        // Only scan the block which could contain the desired key value pair
         let key = key.to_string();
 
         let (block_key, offset) = match closest_element_before(key.clone(), &self.index) {
@@ -169,8 +174,7 @@ impl SegmentStore {
         let mut reader = self.start_from_offset(offset)?;
         let (_, block) = read_entry(&mut reader)?;
 
-        debug!("Block size: {}", block.len());
-
+        trace!("Block size: {}", block.len());
 
        for (k, v) in BlockIterator::new(&block) {
         if k == key {
@@ -248,6 +252,7 @@ fn closest_element_before<K:PartialOrd + Clone, V: Clone> (key: K, elements: &Ve
         return None;
     }
 
+    // Binary search
     let mut low = 0;
     let mut high = elements.len() - 1;
 
@@ -268,6 +273,7 @@ fn closest_element_before<K:PartialOrd + Clone, V: Clone> (key: K, elements: &Ve
         }
     }
 
+    // Ensure we return the closest element before the input
     if elements[mid].0 > key {
         if mid == 0 {
             return None;
@@ -317,10 +323,12 @@ fn get_writer(file_path: PathBuf) -> File {
 }
 
 fn compress(input: &[u8]) -> &[u8] {
+    //TODO: Utilize a compression algorithm
     input
 }
 
 fn decompress(input: &[u8]) -> &[u8] {
+    //TODO: Utilize a decompression algorithm
     input
 }
 
