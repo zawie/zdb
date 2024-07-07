@@ -38,6 +38,7 @@ impl Storage for Database {
         if self.memory.get_memory_usage() > 10 {
             self.segments.push(SegmentStore::create_from_iterator(
                 "temp.seg".to_string(),
+                self.segments.len(),
                 self.memory.iter().map(|(k, v)| (k.to_owned(), v.to_owned()))
             ).unwrap());
             self.memory = MemoryStore::new();

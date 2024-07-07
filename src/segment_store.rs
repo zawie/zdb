@@ -7,15 +7,21 @@ use log::{debug};
 
 const BLOCK_SIZE: usize = 10000;
 pub struct SegmentStore {
+    sequence_number: usize,
     file_path: String,  
     index: Vec<(String, usize)>, // (key, offset)
 }
 
 pub fn load_from_file(file_path: &String) -> Result<SegmentStore, Box<dyn Error>> {
-    let mut reader: BufReader<File> = BufReader::new(File::open(file_path)?);
     let mut index = Vec::new();
-
+    let mut reader: BufReader<File> = BufReader::new(File::open(file_path)?);
     let mut bytes_read = 0;
+
+    // Read in the sequence number
+    let mut sequene_number_bytes: [u8; 8] = [0; 8];
+    reader.read_exact(&mut sequene_number_bytes)?;
+    bytes_read += 8;
+
     while !reader.fill_buf()?.is_empty() {
         let (key, block) = read_entry(&mut reader)?;
         index.push((str::from_utf8(key.as_slice())?.to_string(), bytes_read));
@@ -24,6 +30,7 @@ pub fn load_from_file(file_path: &String) -> Result<SegmentStore, Box<dyn Error>
 
 
     Ok(SegmentStore{
+        sequence_number: usize::from_ne_bytes(sequene_number_bytes),
         file_path: file_path.to_owned(),
         index: index,
     })
@@ -31,9 +38,11 @@ pub fn load_from_file(file_path: &String) -> Result<SegmentStore, Box<dyn Error>
 
 impl SegmentStore {
 
-    pub fn create_from_iterator(file_path: String, sorted_iterator: impl Iterator<Item = (String, String)>) -> Result<SegmentStore, Box<dyn Error>> {
+    pub fn create_from_iterator(file_path: String, sequence_number: usize, sorted_iterator: impl Iterator<Item = (String, String)>) -> Result<SegmentStore, Box<dyn Error>> {
         let mut writer = get_writer(&file_path);
         let mut bytes_written = 0usize;
+
+        bytes_written += writer.write(&sequence_number.to_ne_bytes())?;
 
         let mut index = Vec::new();
 
@@ -68,6 +77,7 @@ impl SegmentStore {
         debug!("Finished writing segment to {}. Wrote {} bytes in {} blocks", file_path, bytes_written, index.len());
 
         Ok(SegmentStore{
+            sequence_number: sequence_number,
             file_path: file_path,
             index: index,
         })
@@ -180,8 +190,6 @@ fn encode(input_string: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
 
     let len_bytes: [u8; 8] = input_string.len().to_ne_bytes();
 
-    assert_eq!(usize::from_ne_bytes(len_bytes), input_string.len(), "Length mismatch");
-
     entry.extend_from_slice(&len_bytes);
     entry.extend_from_slice(input_string);
 
@@ -244,6 +252,7 @@ mod tests {
 
         let segment = SegmentStore::create_from_iterator(
             file_path.to_string(), 
+            0,
             state.iter().map(|(k, v)| (k.to_string(), v.to_string()))
         
         ).unwrap();
