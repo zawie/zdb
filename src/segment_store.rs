@@ -38,6 +38,10 @@ pub fn load_from_file(file_path: PathBuf) -> Result<SegmentStore, Box<dyn Error>
 
 impl SegmentStore {
 
+    pub fn get_sequence_number(&self) -> usize {
+        self.sequence_number
+    }
+    
     pub fn create_from_iterator(file_path: PathBuf, sequence_number: usize, sorted_iterator: impl Iterator<Item = (String, String)>) -> Result<SegmentStore, Box<dyn Error>> {
         let mut writer = get_writer(file_path.clone());
         let mut bytes_written = 0usize;

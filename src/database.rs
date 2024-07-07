@@ -1,6 +1,7 @@
 use std::{fs, path::PathBuf};
+use log::warn;
 use uuid::Uuid;
-use crate::{log_store::LogStore, memory_store::MemoryStore, segment_store::SegmentStore};
+use crate::{log_store::LogStore, memory_store::MemoryStore, segment_store::{SegmentStore, load_from_file}};
 use super::{Storage, SetResult, GetResult};
 
 const MAX_MEMORY_USAGE: usize = 100_000;
@@ -15,11 +16,22 @@ impl Database {
     pub fn new(directory: PathBuf) -> Result<Database, Box<dyn std::error::Error>> {
         fs::create_dir_all(directory.to_owned())?;
 
+        let paths = fs::read_dir(directory.to_owned()).unwrap();
+        let mut segments = Vec::new();
+
+        for path in paths {
+            let path = path.unwrap();
+            if path.file_name().as_os_str().to_str().unwrap().ends_with(".seg") {
+                segments.push(load_from_file(path.path())?);
+            }
+        }
+
+        segments.sort_by(|a, b| a.get_sequence_number().cmp(&b.get_sequence_number()));
 
         let mut db = Database {
             memory: MemoryStore::new(),
             log: LogStore::init(directory.join("write.log")),
-            segments: Vec::new(),
+            segments: segments,
             directory: directory,
         };
 
