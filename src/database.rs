@@ -41,6 +41,7 @@ impl Storage for Database {
                 self.memory.iter().map(|(k, v)| (k.to_owned(), v.to_owned()))
             ).unwrap());
             self.memory = MemoryStore::new();
+            self.log.flush()?;
         }
 
         Ok(())
@@ -99,5 +100,5 @@ mod tests {
 
         
     }
-
+    
 }
