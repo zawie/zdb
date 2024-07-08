@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 use log::warn;
 use uuid::Uuid;
-use crate::{log_store::LogStore, memory_store::MemoryStore, segment_store::{SegmentStore, load_from_file}};
+use crate::{log_store::LogStore, memory_store::MemoryStore, segment_store::{compact, load_from_file, SegmentStore}};
 use super::{Storage, SetResult, GetResult};
 
 const MAX_MEMORY_USAGE: usize = 100_000;
@@ -27,6 +27,14 @@ impl Database {
         }
 
         segments.sort_by(|a, b| a.get_sequence_number().cmp(&b.get_sequence_number()));
+        if segments.len() > 1 {
+            let new_segment: SegmentStore = compact(directory.join(format!("{}.seg", Uuid::new_v4().to_string())), &mut segments)?;
+            
+            segments.iter().map(|s| s.delete())
+            .filter(Result::is_err)
+            .for_each(|r| warn!("Failed to delete segment: {}", r.err().unwrap()));
+            segments = vec![new_segment];            
+        }
 
         let mut db = Database {
             memory: MemoryStore::new(),

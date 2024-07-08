@@ -1,4 +1,4 @@
-use std::{error::Error, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Cursor, Read, Seek, Write}, iter::Peekable, path::PathBuf};
+use std::{error::Error, fs::{self, File, OpenOptions}, io::{self, BufRead, BufReader, Cursor, Read, Seek, Write}, iter::Peekable, path::PathBuf};
 use std::str;
 
 use super::GetResult;
@@ -37,7 +37,7 @@ pub fn load_from_file(file_path: PathBuf) -> Result<SegmentStore, Box<dyn Error>
 }
 
 // Merges segment stores into one segment. Duplicate keys are resolved by taking the higehst sequence number key.
-pub fn compact(file_path: PathBuf, mut segments: Vec<SegmentStore>) -> Result<SegmentStore, Box<dyn Error>> {
+pub fn compact(file_path: PathBuf, segments: &mut Vec<SegmentStore>) -> Result<SegmentStore, Box<dyn Error>> {
     segments.sort_by(|a, b| a.get_sequence_number().cmp(&b.get_sequence_number()));
 
     struct InterIterator {
@@ -154,6 +154,10 @@ impl SegmentStore {
             file_path: file_path,
             index: index,
         })
+    }
+
+    pub fn delete(&self) -> io::Result<()> {
+        fs::remove_file(self.file_path.to_owned())
     }
 }
 
@@ -393,7 +397,7 @@ mod tests {
         let file_path_compact: PathBuf = PathBuf::from("temp_compact_compacted.seg");
         let compact_segment = compact(
             file_path_compact.to_owned(),
-            vec!(segment_0, segment_1)
+            &mut vec!(segment_0, segment_1)
         ).expect("Failed to compact segments!");
         let _ = fs::remove_file(file_path_0);
         let _ = fs::remove_file(file_path_1);
