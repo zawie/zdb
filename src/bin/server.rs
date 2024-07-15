@@ -6,7 +6,7 @@ use std::io::{prelude::*, BufReader};
 
 fn main() {
 
-    let mut db = Database::new(PathBuf::from("~/zdb")).expect("Failed to create database");
+    let mut db = Database::new(PathBuf::from("/tmp/zdb")).expect("Failed to create database");
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
     for stream in listener.incoming() {
@@ -26,7 +26,7 @@ fn handle_connection(mut stream: TcpStream, db: &mut Database) {
         .take_while(|line| !line.is_empty())
         .collect();
     
-    debug!("Request: {http_request:#?}");
+    println!("Request: {http_request:#?}");
 
     let key = http_request[0].split_whitespace().nth(1).unwrap().split("/").nth(1).unwrap();
 
