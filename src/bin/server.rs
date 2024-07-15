@@ -29,45 +29,54 @@ fn handle_connection(mut stream: TcpStream, db: &mut Database) {
     println!("Request: {http_request:#?}");
 
     let key = http_request[0].split_whitespace().nth(1).unwrap().split("/").nth(1).unwrap();
+    let method = http_request[0].split_whitespace().nth(0).unwrap();
 
-    let (status, contents) = if http_request[0].starts_with("GET") {
-        info!("GET request for key: {key}");
-        let contents = db.get(key).unwrap();
-        match contents {
-            Some(contents) => {
-                (200, contents)
-            }
-            None => {
-                (404, String::from("Key not found!"))
-            }
-        }
-    } else if http_request[0].starts_with("POST") {
-        info!("POST request for key: {key}");
-        let content_length = http_request[http_request.len() - 1].split_whitespace().nth(1).unwrap();
-        let content_length = content_length.parse::<usize>().unwrap();
-        debug!("Content-Length: {content_length}");
-
-        let mut buf = vec![0u8; content_length];
-        if buf_reader.read_exact(&mut buf).is_ok() {
-            match String::from_utf8(buf) {
-                Ok(value) => {
-                    if db.set(key, value.as_str()).is_ok() {
-                        (201, value)
-                    } else {
-                        (500, String::from("Oops! Something went wrong."))
-                    }                }
-                Err(e) => {
-                    (400, format!("Unable to read content: {e}"))
+    let (status, mut contents) = match method {
+        "GET" | "HEAD" => {
+            info!("GET request for key: {key}");
+            let contents = db.get(key).unwrap();
+            match contents {
+                Some(contents) => {
+                    (200, contents)
+                }
+                None => {
+                    (404, String::from("Key not found!"))
                 }
             }
-        } else {
-            (400, String::from("Unable to read content"))
         }
-    } else {
-        (405, String::from("Invalid method"))
+        "POST" => {
+            info!("POST request for key: {key}");
+            let content_length = http_request[http_request.len() - 1].split_whitespace().nth(1).unwrap();
+            let content_length = content_length.parse::<usize>().unwrap();
+            debug!("Content-Length: {content_length}");
+    
+            let mut buf = vec![0u8; content_length];
+            if buf_reader.read_exact(&mut buf).is_ok() {
+                match String::from_utf8(buf) {
+                    Ok(value) => {
+                        if db.set(key, value.as_str()).is_ok() {
+                            (201, value)
+                        } else {
+                            (500, String::from("Oops! Something went wrong."))
+                        }                }
+                    Err(e) => {
+                        (400, format!("Unable to read content: {e}"))
+                    }
+                }
+            } else {
+                (400, String::from("Unable to read content"))
+            }
+        }
+        _ =>  (405, String::from("Invalid method"))
     };
 
+
     let len = contents.len();
+
+    if method == "HEAD" {
+        contents.clear();
+    }
+    
     let response = format!("HTTP/1.1 {status}\r\nContent-Length: {len}\r\n\r\n{contents}");
     stream.write_all(response.as_bytes()).unwrap();
 
